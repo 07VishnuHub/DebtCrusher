@@ -1,255 +1,296 @@
----
-title: My Env Environment Server
-emoji: 🔕
-colorFrom: pink
-colorTo: green
-sdk: docker
-pinned: false
-app_port: 8000
-base_path: /web
-tags:
-  - openenv
+# DebtCrush — Debt Payoff Optimisation Environment
+
+> An OpenEnv reinforcement learning environment where agents learn to pay off
+> multiple debts optimally by discovering the avalanche strategy through reward signal alone.
+
+[![Space](https://img.shields.io/badge/🤗%20Space-Vishmeluck%2Fmy__env-blue)](https://huggingface.co/spaces/Vishmeluck/my_env)
+[![OpenEnv](https://img.shields.io/badge/OpenEnv-compatible-green)](https://github.com/meta-pytorch/OpenEnv)
+
 ---
 
-# My Env Environment
+## Overview
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+DebtCrush places an agent in charge of a household debt portfolio. Each month,
+the agent allocates a fixed budget across multiple debts (credit cards, loans)
+to minimise total interest paid and clear all debts as fast as possible.
 
-## Quick Start
+The core challenge: the agent must **discover the avalanche strategy** (pay
+highest-APR debt first) purely from reward signal — without being told it exists.
 
-The simplest way to use the My Env environment is through the `MyEnv` class:
+### Why this is interesting for RL
+
+| Strategy | What it does | Total interest paid |
+|---|---|---|
+| Random | Splits payments randomly | ~$1,800 |
+| Snowball | Pays smallest balance first | ~$900 |
+| **Avalanche** | Pays highest APR first | **~$400** |
+| Optimal agent | Should converge to avalanche | ~$350 |
+
+The gap between random and optimal is large and fully measurable — making
+reward signal dense and training meaningful.
+
+---
+
+## Environment
+
+**Space URL:** `https://huggingface.co/spaces/Vishmeluck/my_env`  
+**API endpoint:** `https://vishmeluck-my-env.hf.space`
+
+### Interface
+
+Every interaction follows the standard OpenEnv 3-method interface:
 
 ```python
-from my_env import MyAction, MyEnv
-
-try:
-    # Create environment from Docker image
-    my_envenv = MyEnv.from_docker_image("my_env-env:latest")
-
-    # Reset
-    result = my_envenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
-
-    for msg in messages:
-        result = my_envenv.step(MyAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
-        print(f"  → Reward: {result.reward}")
-
-finally:
-    # Always clean up
-    my_envenv.close()
+env.reset()        # Start a new episode
+env.step(action)   # Take one monthly payment action
+env.state()        # Get episode metadata
 ```
-
-That's it! The `MyEnv.from_docker_image()` method handles:
-- Starting the Docker container
-- Waiting for the server to be ready
-- Connecting to the environment
-- Container cleanup when you call `close()`
-
-## Building the Docker Image
-
-Before using the environment, you need to build the Docker image:
-
-```bash
-# From project root
-docker build -t my_env-env:latest -f server/Dockerfile .
-```
-
-## Deploying to Hugging Face Spaces
-
-You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
-
-```bash
-# From the environment directory (where openenv.yaml is located)
-openenv push
-
-# Or specify options
-openenv push --namespace my-org --private
-```
-
-The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
-
-### Prerequisites
-
-- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
-
-### Options
-
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
-- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
-- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
-- `--private`: Deploy the space as private (default: public)
-
-### Examples
-
-```bash
-# Push to your personal namespace (defaults to username/env-name from openenv.yaml)
-openenv push
-
-# Push to a specific repository
-openenv push --repo-id my-org/my-env
-
-# Push with a custom base image
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
-
-# Push as a private space
-openenv push --private
-
-# Combine options
-openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
-```
-
-After deployment, your space will be available at:
-`https://huggingface.co/spaces/<repo-id>`
-
-The deployed space includes:
-- **Web Interface** at `/web` - Interactive UI for exploring the environment
-- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
-- **Health Check** at `/health` - Container health monitoring
-- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
-
-## Environment Details
 
 ### Action
-**MyAction**: Contains a single field
-- `message` (str) - The message to echo back
-
-### Observation
-**MyObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
-- `metadata` (dict) - Additional info like step count
-
-### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
-
-## Advanced Usage
-
-### Connecting to an Existing Server
-
-If you already have a My Env environment server running, you can connect directly:
 
 ```python
-from my_env import MyEnv
-
-# Connect to existing server
-my_envenv = MyEnv(base_url="<ENV_HTTP_URL_HERE>")
-
-# Use as normal
-result = my_envenv.reset()
-result = my_envenv.step(MyAction(message="Hello!"))
-```
-
-Note: When connecting to an existing server, `my_envenv.close()` will NOT stop the server.
-
-### Using the Context Manager
-
-The client supports context manager usage for automatic connection management:
-
-```python
-from my_env import MyAction, MyEnv
-
-# Connect with context manager (auto-connects and closes)
-with MyEnv(base_url="http://localhost:8000") as env:
-    result = env.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-    # Multiple steps with low latency
-    for msg in ["Hello", "World", "!"]:
-        result = env.step(MyAction(message=msg))
-        print(f"Echoed: {result.observation.echoed_message}")
-```
-
-The client uses WebSocket connections for:
-- **Lower latency**: No HTTP connection overhead per request
-- **Persistent session**: Server maintains your environment state
-- **Efficient for episodes**: Better for many sequential steps
-
-### Concurrent WebSocket Sessions
-
-The server supports multiple concurrent WebSocket connections. To enable this,
-modify `server/app.py` to use factory mode:
-
-```python
-# In server/app.py - use factory mode for concurrent sessions
-app = create_app(
-    MyEnvironment,  # Pass class, not instance
-    MyAction,
-    MyObservation,
-    max_concurrent_envs=4,  # Allow 4 concurrent sessions
+MyAction(
+    extra_payments="280.0, 0.0",   # Comma-separated extra payment per debt
+    task="t1"                       # Task difficulty: t1, t2, or t3
 )
 ```
 
-Then multiple clients can connect simultaneously:
+`extra_payments` are amounts **above the mandatory minimums**. Minimums are
+applied automatically. The sum must not exceed the remaining budget after
+minimums are paid — the environment auto-scales if exceeded.
+
+### Observation
 
 ```python
+MyObservation(
+    balances=[2000.0, 3000.0],        # Current balance per debt ($)
+    aprs=[0.24, 0.12],                # Annual percentage rate per debt
+    min_payments=[40.0, 60.0],        # Mandatory minimum per debt ($)
+    months_budget=400.0,              # Total monthly budget ($)
+    total_interest_paid=0.0,          # Cumulative interest paid so far ($)
+    month=0,                          # Current month (0-indexed)
+    reward=0.0,                       # Reward this step
+    done=False                        # Episode complete
+)
+```
+
+---
+
+## Tasks
+
+Three tasks of increasing difficulty. All scores are deterministic and in [0.0, 1.0].
+
+### T1 — Easy (`task="t1"`)
+
+| Property | Value |
+|---|---|
+| Debts | 2 (Card A, Card B) |
+| Balances | $2,000 @ 24% APR, $5,000 @ 12% APR |
+| Monthly budget | $400 |
+| Max steps | 60 months |
+
+**Challenge:** Two debts with a clear APR difference. Agent must learn to
+prioritise Card A (24% APR) over Card B (12% APR) despite Card A having a
+lower balance.
+
+---
+
+### T2 — Medium (`task="t2"`)
+
+| Property | Value |
+|---|---|
+| Debts | 3 (Card A, Card B, Loan) |
+|Balances | $4,000 @ 24%, $2,000 @ 18%, $6,000 @ 8% |
+| Monthly budget | $600 |
+| Max steps | 60 months |
+
+**Challenge:** Three debts with tighter budget. Agent must resist the temptation
+to pay off the smaller Card B balance first and stay disciplined on high-APR debts.
+
+---
+
+### T3 — Hard (`task="t3"`)
+
+| Property | Value |
+|---|---|
+| Debts | 5 (3 cards, 2 loans) |
+| Balances | $5,000–$8,000 across 6%–27% APR range |
+| Monthly budget | $1,000 |
+| Max steps | 60 months |
+
+**Challenge:** Five debts with wide APR spread and tight budget. Agent must
+maintain a consistent avalanche ordering across a long horizon while
+managing minimum payments on all debts simultaneously.
+
+---
+
+## Reward Design
+
+### Per-step reward
+
+```
+r_step = − interest_this_month / initial_total_debt
+```
+
+Small negative signal each month proportional to interest paid. Encourages
+the agent to minimise ongoing interest cost.
+
+### Terminal reward (all debts cleared)
+
+```
+speed_bonus        = 1 − (months_taken / 60)
+interest_efficiency = 1 − (total_interest_paid / initial_total_debt)
+
+r_terminal = 0.6 × speed_bonus + 0.4 × interest_efficiency
+```
+
+### Timeout penalty (60 months without clearing debts)
+
+```
+r_timeout = −1.0
+```
+
+### Why this reward is interesting
+
+- **Explore-exploit tension:** paying minimum on everything is safe but
+  accumulates interest. Concentrating payments is risky but optimal.
+- **Delayed gratification:** avalanche strategy sacrifices short-term
+  balance reduction for long-term interest savings.
+- **Anti-reward-hacking:** timeout penalty prevents the agent from
+  ignoring debts; interest penalty prevents lazy minimum-only payments.
+
+### Score formula
+
+```
+final_score = clamp(r_terminal, 0.0, 1.0)
+```
+
+All scores are deterministic given a fixed task and action sequence.
+
+---
+
+## Graders
+
+| Metric | Formula | Weight |
+|---|---|---|
+| Speed bonus | `1 − months_taken / 60` | 60% |
+| Interest efficiency | `1 − total_interest_paid / initial_debt` | 40% |
+
+Both components are pure arithmetic — no LLM judge, no randomness.
+
+---
+
+## Quick Start
+
+### Connect from Python
+
+```python
+import sys, os
+sys.path.insert(0, os.path.abspath("OpenEnv/src"))
+
 from my_env import MyAction, MyEnv
-from concurrent.futures import ThreadPoolExecutor
 
-def run_episode(client_id: int):
-    with MyEnv(base_url="http://localhost:8000") as env:
-        result = env.reset()
-        for i in range(10):
-            result = env.step(MyAction(message=f"Client {client_id}, step {i}"))
-        return client_id, result.observation.message_length
+with MyEnv(base_url="https://vishmeluck-my-env.hf.space").sync() as env:
+    result = env.reset()
+    print("Balances:", result.observation.balances)
 
-# Run 4 episodes concurrently
-with ThreadPoolExecutor(max_workers=4) as executor:
-    results = list(executor.map(run_episode, range(4)))
+    # Avalanche: throw extra budget at highest-APR debt
+    result = env.step(MyAction(extra_payments="280.0, 0.0", task="t1"))
+    print("After month 1:", result.observation.balances)
+    print("Reward:", result.reward)
 ```
 
-## Development & Testing
-
-### Direct Environment Testing
-
-Test the environment logic directly without starting the HTTP server:
+### Install dependencies
 
 ```bash
-# From the server directory
-python3 server/my_env_environment.py
+pip install openenv-core
+git clone --depth=1 https://github.com/meta-pytorch/OpenEnv.git
 ```
 
-This verifies that:
-- Environment resets correctly
-- Step executes actions properly
-- State tracking works
-- Rewards are calculated correctly
+---
 
-### Running Locally
+## Running Inference
 
-Run the server locally for development:
+### Required environment variables
+
+| Variable | Description | Example |
+|---|---|---|
+| `HF_TOKEN` | HuggingFace API key | `hf_xxxx...` |
+| `MODEL_NAME` | LLM model to use | `Qwen/Qwen2.5-72B-Instruct` |
+| `API_BASE_URL` | LLM API endpoint | `https://router.huggingface.co/v1` |
+| `ENV_URL` | DebtCrush Space URL | `https://vishmeluck-my-env.hf.space` |
+
+### Run inference
 
 ```bash
-uvicorn server.app:app --reload
+# Set variables (Windows)
+set HF_TOKEN=your_token_here
+set MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
+set API_BASE_URL=https://router.huggingface.co/v1
+set ENV_URL=https://vishmeluck-my-env.hf.space
+
+python inference.py
 ```
+
+```bash
+# Set variables (Linux/Mac)
+export HF_TOKEN=your_token_here
+export MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
+export API_BASE_URL=https://router.huggingface.co/v1
+export ENV_URL=https://vishmeluck-my-env.hf.space
+
+python inference.py
+```
+
+### Expected output format
+
+```
+[START] task=t1 env=debt_crush model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=280.00, 0.00 reward=-0.01 done=false error=null
+[STEP] step=2 action=280.00, 0.00 reward=-0.01 done=false error=null
+...
+[END] success=true steps=24 score=0.82 rewards=-0.01,-0.01,...,0.82
+[START] task=t2 env=debt_crush model=Qwen/Qwen2.5-72B-Instruct
+...
+[START] task=t3 env=debt_crush model=Qwen/Qwen2.5-72B-Instruct
+...
+```
+
+---
 
 ## Project Structure
 
 ```
 my_env/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # MyEnv client
-├── models.py              # Action and Observation models
+├── inference.py              ← Inference script (entry point)
+├── models.py                 ← Pydantic action/observation models
+├── client.py                 ← OpenEnv client
+├── README.md                 ← This file
+├── openenv.yaml              ← OpenEnv configuration
+├── pyproject.toml            ← Package metadata
 └── server/
-    ├── __init__.py        # Server module exports
-    ├── my_env_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
-    └── Dockerfile         # Container image definition
+    ├── app.py                ← FastAPI server
+    ├── my_env_environment.py ← Core environment logic
+    ├── Dockerfile            ← Container definition
+    └── requirements.txt      ← Server dependencies
 ```
+
+---
+
+## Environment Variables (server-side)
+
+No server-side environment variables are required. The environment is
+fully self-contained and stateless between episodes.
+
+---
+
+## Scaling
+
+The environment supports concurrent WebSocket sessions
+(`SUPPORTS_CONCURRENT_SESSIONS = True`). Each session gets its own
+isolated environment instance.
+
+| Deployment | Concurrent sessions |
+|---|---|
+| HF Spaces (free) | ~128 |
+| Single Docker container | ~2,048 |
